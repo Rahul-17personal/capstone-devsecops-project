@@ -38,7 +38,7 @@ A non-zero exit code indicates a scan error or a policy failure. Review `artifac
 
 ## Policy
 
-Edit `policy.toml` to choose which severities fail the build. By default, CRITICAL findings fail the gate; HIGH findings are reported but do not fail it.
+Edit `policy.toml` to choose which severities fail the build and which appear in detailed reports. By default, CRITICAL findings fail the gate; HIGH and UNKNOWN findings appear in detailed reports but do not fail it. UNKNOWN findings should be reviewed rather than interpreted as clean.
 
 ## Project layout
 
@@ -55,6 +55,10 @@ src/aegistrail/   # CLI, scan models, Trivy integration, policy and reporting
 - Initial scope is container image vulnerability scanning. It does not yet scan source code, Terraform, hosts, or Kubernetes clusters.
 - Results depend on the Trivy database available during a scan; a successful scan is not a guarantee of security.
 - Do not commit credentials. Use least-privilege secrets for future private-registry support.
+
+## Initial baseline observation
+
+The first Trivy run against `alpine:3.20` reported `CVE-2026-107891` against the `musl` and `musl-utils` packages (installed `1.2.5-r3`, fixed version listed as `1.2.5-r4`). Trivy classified both records as `UNKNOWN`, so they are reported for triage and do not fail the current CRITICAL-only gate. Trivy also marked the scanned Alpine 3.20 image as end-of-service-life. For production use, select a supported Alpine branch and rescan. See the [official Alpine release branches](https://www.alpinelinux.org/releases/).
 
 ## Development
 
