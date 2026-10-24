@@ -2,7 +2,7 @@ name: AegisTrail Container Security
 
 on:
   push:
-    branches: [main]
+    branches: [main, scan-first-image]
   pull_request:
   workflow_dispatch:
     inputs:
