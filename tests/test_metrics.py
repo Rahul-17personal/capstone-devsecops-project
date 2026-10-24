@@ -20,7 +20,7 @@ def test_metrics_reflect_latest_scan_and_escape_image_labels(tmp_path):
     output = render_metrics(report)
     assert "aegistrail_scan_report_available 1" in output
     assert r'image="demo:\"quoted\"",severity="CRITICAL"} 1' in output
-    assert r'image="demo:\"quoted\""} 0' in output
+    assert r'image="demo:\"quoted\"",severity="LOW"} 0' in output
     assert "aegistrail_findings_detected" in output
     assert "aegistrail_scan_policy_passed" in output
 
