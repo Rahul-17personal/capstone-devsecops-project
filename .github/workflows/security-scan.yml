@@ -9,7 +9,7 @@ on:
       image:
         description: Container image reference to scan
         required: true
-        default: alpine:3.24
+        default: alpine:3.20
         type: string
 
 permissions:
@@ -53,7 +53,7 @@ jobs:
       - name: Scan and enforce policy
         run: |
           python -m aegistrail scan \
-            --image "${{ inputs.image || 'alpine:3.24' }}" \
+            --image "${{ inputs.image || 'alpine:3.20' }}" \
             --policy policy.toml \
             --out-dir artifacts
       - name: Upload SARIF to GitHub Code Scanning
