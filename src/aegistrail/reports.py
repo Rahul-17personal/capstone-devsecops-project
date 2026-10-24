@@ -11,12 +11,18 @@ def write_reports(summary: ScanSummary, policy: Policy, out_dir: str | Path) -> 
     destination = Path(out_dir)
     destination.mkdir(parents=True, exist_ok=True)
     passed, reasons = evaluate_policy(summary, policy)
+    reported_findings = [
+        item for item in summary.findings if item.severity in policy.report_severity
+    ]
     payload = {
         "image": summary.image,
         "scanner_schema_version": summary.scanner_version,
         "policy_passed": passed,
         "policy_reasons": reasons,
         "severity_counts": summary.severity_counts,
+        "findings_detected": len(summary.findings),
+        "findings_reported": len(reported_findings),
+        "report_severity": list(policy.report_severity),
         "findings": [
             {
                 "target": item.target,
@@ -27,7 +33,7 @@ def write_reports(summary: ScanSummary, policy: Policy, out_dir: str | Path) -> 
                 "vulnerability_id": item.vulnerability_id,
                 "title": item.title,
             }
-            for item in summary.findings
+            for item in reported_findings
         ],
     }
     json_path = destination / "results.json"
@@ -44,8 +50,10 @@ def _markdown(payload: dict) -> str:
         "",
         f"- **Image:** `{payload['image']}`",
         f"- **Policy result:** **{status}**",
+        f"- **Findings detected:** {payload['findings_detected']}",
+        f"- **Findings included in detail:** {payload['findings_reported']}",
         "",
-        "## Severity summary",
+        "## Severity summary (all detected findings)",
         "",
         "| Severity | Findings |",
         "|---|---:|",
@@ -54,9 +62,16 @@ def _markdown(payload: dict) -> str:
         lines.append(f"| {severity} | {count} |")
     lines.extend(["", "## Policy", ""])
     lines.extend(f"- {reason}" for reason in payload["policy_reasons"])
-    lines.extend(["", "## Findings", ""])
+    lines.extend([
+        "",
+        "## Findings",
+        "",
+        "Detailed rows are filtered by configured report severities: "
+        + ", ".join(payload["report_severity"]),
+        "",
+    ])
     if not payload["findings"]:
-        lines.append("No vulnerabilities were listed in the scan output.")
+        lines.append("No findings matched the configured report severities.")
     else:
         lines.extend([
             "| Severity | ID | Package | Installed | Fixed in | Target |",
