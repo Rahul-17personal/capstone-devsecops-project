@@ -35,7 +35,19 @@ The project creates a human-friendly HTML summary, Markdown and JSON output, and
 
 ## Architecture
 
-Developer / CI → GitHub Actions or Jenkins → AegisTrail CLI → Trivy scan → Policy gate → JSON, Markdown, HTML and SARIF reports.
+```mermaid
+flowchart TD
+    Dev[Developer / CI] --> Runner[GitHub Actions or Jenkins]
+    Runner --> Scan[AegisTrail CLI]
+    Scan --> Trivy[Trivy image scan]
+    Trivy --> Gate[Policy-as-code gate]
+    Gate --> Reports[JSON, Markdown, HTML and SARIF]
+    Reports --> Artifact[CI artifacts]
+    Reports --> Slack[Optional Slack notification]
+    Reports --> Metrics[Prometheus metrics exporter]
+    Metrics --> Prometheus[Prometheus]
+    Prometheus --> Grafana[Grafana security dashboard]
+```
 
 The report files can be archived in CI and sent to an optional Slack webhook. The latest JSON report is read by the AegisTrail metrics exporter, scraped by Prometheus, and visualized in Grafana.
 
