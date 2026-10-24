@@ -1,0 +1,178 @@
+name: AegisTrail Final Validation
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-end-to-end:
+    name: Scan, reports, Prometheus and Grafana
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install AegisTrail and validation tools
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install pyyaml
+
+      - name: Validate lint and unit tests
+        run: |
+          ruff check .
+          pytest -q
+
+      - name: Validate configuration syntax
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import yaml
+
+          for path in (
+              "observability/prometheus.yml",
+              "observability/alert_rules.yml",
+              "observability/grafana/provisioning/datasources/prometheus.yml",
+              "observability/grafana/provisioning/dashboards/dashboards.yml",
+              "docker-compose.yml",
+          ):
+              with Path(path).open(encoding="utf-8") as handle:
+                  yaml.safe_load(handle)
+              print(f"YAML OK: {path}")
+
+          json.loads(Path("observability/grafana/dashboards/aegistrail-overview.json").read_text(encoding="utf-8"))
+          print("JSON OK: Grafana dashboard")
+          PY
+          docker compose config --quiet
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+
+      - name: Run real container image scan
+        run: |
+          python -m aegistrail scan \
+            --image alpine:3.24 \
+            --policy policy.toml \
+            --out-dir artifacts
+
+      - name: Verify scan reports
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = [
+              "artifacts/results.json",
+              "artifacts/summary.md",
+              "artifacts/summary.html",
+              "artifacts/results.sarif",
+              "artifacts/trivy-raw.json",
+          ]
+          missing = [name for name in expected if not Path(name).is_file()]
+          assert not missing, f"Missing scan reports: {missing}"
+
+          results = json.loads(Path("artifacts/results.json").read_text(encoding="utf-8"))
+          assert results.get("image") == "alpine:3.24", results.get("image")
+          assert "policy_passed" in results
+          sarif = json.loads(Path("artifacts/results.sarif").read_text(encoding="utf-8"))
+          assert isinstance(sarif.get("runs"), list) and sarif["runs"]
+          print("All five report files exist; JSON and SARIF are parseable.")
+          print(f"Findings: {results.get('findings_detected')}; policy_passed={results.get('policy_passed')}")
+          PY
+
+      - name: Start observability stack
+        run: docker compose up --build -d
+
+      - name: Verify exporter, Prometheus, and Grafana
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8000/metrics >/tmp/aegistrail-metrics.txt; then
+              break
+            fi
+            sleep 3
+          done
+          grep -q 'aegistrail_scan_report_available 1' /tmp/aegistrail-metrics.txt
+
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:9090/-/ready >/dev/null; then
+              break
+            fi
+            sleep 3
+          done
+          curl -fsS http://127.0.0.1:9090/-/ready >/dev/null
+
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then
+              break
+            fi
+            sleep 3
+          done
+          curl -fsS http://127.0.0.1:3000/api/health >/tmp/grafana-health.json
+
+          for i in $(seq 1 40); do
+            if curl -fsS 'http://127.0.0.1:9090/api/v1/targets' >/tmp/prom-targets.json \
+              && python -c 'import json; d=json.load(open("/tmp/prom-targets.json")); raise SystemExit(0 if any(t.get("labels",{}).get("job")=="aegistrail" and t.get("health")=="up" for t in d.get("data",{}).get("activeTargets",[])) else 1)'; then
+              break
+            fi
+            sleep 3
+          done
+          python - <<'PY'
+          import json
+          d = json.load(open("/tmp/prom-targets.json", encoding="utf-8"))
+          active = d.get("data", {}).get("activeTargets", [])
+          assert any(t.get("labels", {}).get("job") == "aegistrail" and t.get("health") == "up" for t in active), active
+          print("Prometheus scrape target is UP.")
+          PY
+
+          for i in $(seq 1 40); do
+            if curl -fsS -u 'admin:local-development-only-change-me' \
+                'http://127.0.0.1:3000/api/search?query=AegisTrail' >/tmp/grafana-search.json \
+              && python -c 'import json; d=json.load(open("/tmp/grafana-search.json")); raise SystemExit(0 if any(x.get("title")=="AegisTrail Security Overview" for x in d) else 1)'; then
+              break
+            fi
+            sleep 3
+          done
+          python - <<'PY'
+          import json
+          dashboards = json.load(open("/tmp/grafana-search.json", encoding="utf-8"))
+          assert any(x.get("title") == "AegisTrail Security Overview" for x in dashboards), dashboards
+          print("Grafana health endpoint and provisioned dashboard are OK.")
+          PY
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always() && hashFiles('artifacts/results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: artifacts/results.sarif
+          category: aegistrail-final-validation
+
+      - name: Upload validated reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegistrail-final-validation-reports
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Capture monitoring logs
+        if: always()
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color || true
+          docker compose down --remove-orphans || true
