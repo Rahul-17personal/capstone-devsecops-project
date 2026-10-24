@@ -1,0 +1,62 @@
+name: AegisTrail Container Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Container image reference to scan
+        required: true
+        default: alpine:3.20
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Run unit tests
+        run: pytest
+
+  image-scan:
+    name: Scan container image
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install AegisTrail
+        run: python -m pip install -e .
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.3
+      - name: Scan and enforce policy
+        run: |
+          python -m aegistrail scan \
+            --image "${{ inputs.image }}" \
+            --policy policy.toml \
+            --out-dir artifacts
+      - name: Upload scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegistrail-scan-reports
+          path: artifacts/
+          if-no-files-found: warn
