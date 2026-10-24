@@ -2,14 +2,14 @@ name: AegisTrail Container Security
 
 on:
   push:
-    branches: [main, scan-first-image]
+    branches: [main, scan-first-image, scan-supported-image]
   pull_request:
   workflow_dispatch:
     inputs:
       image:
         description: Container image reference to scan
         required: true
-        default: alpine:3.20
+        default: alpine:3.24
         type: string
 
 permissions:
@@ -34,7 +34,7 @@ jobs:
 
   image-scan:
     name: Scan container image
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/scan-first-image'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/scan-first-image' || github.ref == 'refs/heads/scan-supported-image'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -50,7 +50,7 @@ jobs:
       - name: Scan and enforce policy
         run: |
           python -m aegistrail scan \
-            --image "${{ inputs.image || 'alpine:3.20' }}" \
+            --image "${{ inputs.image || 'alpine:3.24' }}" \
             --policy policy.toml \
             --out-dir artifacts
       - name: Upload scan reports
