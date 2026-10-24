@@ -10,7 +10,7 @@ from aegistrail.models import ScanSummary
 @dataclass(frozen=True)
 class Policy:
     fail_on_severity: tuple[str, ...] = ("CRITICAL",)
-    report_severity: tuple[str, ...] = ("HIGH", "CRITICAL")
+    report_severity: tuple[str, ...] = ("UNKNOWN", "HIGH", "CRITICAL")
     minimum_findings_to_fail: int = 1
 
     @classmethod
@@ -18,7 +18,7 @@ class Policy:
         with Path(path).open("rb") as handle:
             data = tomllib.load(handle)
         fail = _normalize_severities(data.get("fail_on_severity", ["CRITICAL"]))
-        report = _normalize_severities(data.get("report_severity", ["HIGH", "CRITICAL"]))
+        report = _normalize_severities(data.get("report_severity", ["UNKNOWN", "HIGH", "CRITICAL"]))
         minimum = data.get("minimum_findings_to_fail", 1)
         if not isinstance(minimum, int) or isinstance(minimum, bool) or minimum < 1:
             raise ValueError("minimum_findings_to_fail must be an integer greater than or equal to 1")
