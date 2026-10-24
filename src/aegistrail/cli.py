@@ -7,7 +7,7 @@ from pathlib import Path
 
 from aegistrail.policy import Policy, evaluate_policy
 from aegistrail.reports import write_reports
-from aegistrail.trivy import TrivyError, scan_image
+from aegistrail.trivy import TrivyError, convert_trivy_json_to_sarif, scan_image
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,14 +28,19 @@ def main() -> int:
     try:
         policy = Policy.from_toml(args.policy)
         Path(args.out_dir).mkdir(parents=True, exist_ok=True)
-        summary = scan_image(args.image, Path(args.out_dir) / "trivy-raw.json")
+        raw_json_path = Path(args.out_dir) / "trivy-raw.json"
+        summary = scan_image(args.image, raw_json_path)
         json_path, markdown_path = write_reports(summary, policy, args.out_dir)
+        sarif_path = convert_trivy_json_to_sarif(
+            raw_json_path, Path(args.out_dir) / "results.sarif"
+        )
         passed, reasons = evaluate_policy(summary, policy)
         print(f"Image: {summary.image}")
         print(f"Findings: {len(summary.findings)}")
         print("Severity counts: " + json.dumps(summary.severity_counts, sort_keys=True))
         print(f"JSON report: {json_path}")
         print(f"Markdown report: {markdown_path}")
+        print(f"SARIF report: {sarif_path}")
         for reason in reasons:
             print(f"Policy: {reason}")
         return 0 if passed else 2
