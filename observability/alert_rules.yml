@@ -1,0 +1,19 @@
+groups:
+  - name: aegistrail-security
+    rules:
+      - alert: AegisTrailCriticalFindings
+        expr: aegistrail_vulnerabilities{severity="CRITICAL"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: AegisTrail detected critical container vulnerabilities
+          description: Review the latest AegisTrail report and remediate affected packages.
+      - alert: AegisTrailPolicyFailed
+        expr: aegistrail_scan_policy_passed == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: AegisTrail security policy failed
+          description: The latest image scan contains findings blocked by the configured policy.
