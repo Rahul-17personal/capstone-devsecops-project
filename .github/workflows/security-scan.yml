@@ -2,7 +2,7 @@ name: AegisTrail Container Security
 
 on:
   push:
-    branches: [main]
+    branches: [main, scan-first-image]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -34,7 +34,7 @@ jobs:
 
   image-scan:
     name: Scan container image
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/scan-first-image'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -46,11 +46,11 @@ jobs:
       - name: Install AegisTrail
         run: python -m pip install -e .
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.3
+        uses: aquasecurity/setup-trivy@v0.3.1
       - name: Scan and enforce policy
         run: |
           python -m aegistrail scan \
-            --image "${{ inputs.image }}" \
+            --image "${{ inputs.image || 'alpine:3.20' }}" \
             --policy policy.toml \
             --out-dir artifacts
       - name: Upload scan reports

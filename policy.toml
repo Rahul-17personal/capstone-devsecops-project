@@ -1,5 +1,5 @@
 # AegisTrail policy
 # Severity values: UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL.
 fail_on_severity = ["CRITICAL"]
-report_severity = ["HIGH", "CRITICAL"]
+report_severity = ["UNKNOWN", "HIGH", "CRITICAL"]
 minimum_findings_to_fail = 1
