@@ -20,18 +20,28 @@ def test_default_policy_fails_on_critical():
     assert "CVE-TEST-1" in reasons[0]
 
 
-def test_high_only_does_not_fail_default_policy():
+def test_default_policy_fails_on_high():
     summary = ScanSummary(
         "demo:1", [Finding("os", "pkg", "1", "", "HIGH", "CVE-HIGH")]
     )
+    passed, reasons = evaluate_policy(summary, Policy())
+    assert passed is False
+    assert "CVE-HIGH" in reasons[0]
+
+
+def test_unknown_is_reportable_but_not_blocking_by_default():
+    summary = ScanSummary(
+        "demo:1", [Finding("os", "pkg", "1", "2", "UNKNOWN", "CVE-UNKNOWN")]
+    )
     assert evaluate_policy(summary, Policy())[0] is True
+    assert "UNKNOWN" in Policy().report_severity
 
 
 def test_policy_toml_loads(tmp_path):
     path = tmp_path / "policy.toml"
     path.write_text(
         'fail_on_severity = ["HIGH"]\n'
-        'report_severity = ["HIGH", "CRITICAL"]\n'
+        'report_severity = ["UNKNOWN", "HIGH", "CRITICAL"]\n'
         'minimum_findings_to_fail = 2\n',
         encoding="utf-8",
     )
