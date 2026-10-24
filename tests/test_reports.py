@@ -31,11 +31,15 @@ def test_sample_fixture_is_valid_trivy_json():
     assert summary.severity_counts["HIGH"] == 1
 
 
-def test_reports_are_created(tmp_path):
+def test_reports_are_created_and_include_unknown_findings(tmp_path):
     summary = ScanSummary("demo:1", [
-        Finding("os", "openssl", "1.0", "1.1", "CRITICAL", "CVE-TEST")
+        Finding("os", "openssl", "1.0", "1.1", "CRITICAL", "CVE-TEST"),
+        Finding("os", "musl", "1.2.5-r3", "1.2.5-r4", "UNKNOWN", "CVE-UNKNOWN"),
     ])
     json_path, markdown_path = write_reports(summary, Policy(), tmp_path)
     payload = json.loads(json_path.read_text(encoding="utf-8"))
+    markdown = markdown_path.read_text(encoding="utf-8")
     assert payload["policy_passed"] is False
-    assert "CVE-TEST" in markdown_path.read_text(encoding="utf-8")
+    assert "CVE-TEST" in markdown
+    assert "CVE-UNKNOWN" in markdown
+    assert payload["findings_reported"] == 2
