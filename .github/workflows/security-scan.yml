@@ -2,7 +2,7 @@ name: AegisTrail Container Security
 
 on:
   push:
-    branches: [main]
+    branches: [main, sarif-validation]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -34,7 +34,7 @@ jobs:
 
   image-scan:
     name: Scan container image
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/sarif-validation'
     runs-on: ubuntu-latest
     permissions:
       contents: read
