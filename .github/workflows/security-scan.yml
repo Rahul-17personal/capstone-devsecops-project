@@ -36,6 +36,9 @@ jobs:
     name: Scan container image
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -53,6 +56,12 @@ jobs:
             --image "${{ inputs.image || 'alpine:3.24' }}" \
             --policy policy.toml \
             --out-dir artifacts
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always() && hashFiles('artifacts/results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: artifacts/results.sarif
+          category: aegistrail-container-image
       - name: Upload scan reports
         if: always()
         uses: actions/upload-artifact@v4
